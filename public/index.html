@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <title>BoredCaster 0.1.0!</title>
+  </head>
+  <body>
+    <h1>BoredCaster 0.1.0!</h1>
+
+    <button type="button" class="btn btn-primary btn-lg" onclick="sendPlayRequest();">Play</button>
+    <button type="button" class="btn btn-success btn-lg" onclick="sendPauseRequest();">Pause</button>
+
+    <p />
+
+    <!-- source: https://developers.google.com/youtube/iframe_api_reference -->
+	<!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
+	<div id="player"></div>
+
+    <script>
+      // 2. This code loads the IFrame Player API code asynchronously.
+      var tag = document.createElement('script');
+
+      tag.src = "https://www.youtube.com/iframe_api";
+      var firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      var statusReporter = null;
+
+      // 3. This function creates an <iframe> (and YouTube player)
+      //    after the API code downloads.
+      var player;
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+          height: '390',
+          width: '640',
+          videoId: '-sWXx1mbgtU',
+          events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+          }
+        });
+      }
+
+      // 4. The API will call this function when the video player is ready.
+      function onPlayerReady(event) {
+        event.target.playVideo();
+        if (start_position > 0) {
+        	console.log("seeking to " + start_position);
+        	player.seekTo(start_position);
+        }
+        statusReporter = setInterval(function() {
+        	if (player.getPlayerState() == 1) {
+        		sendCurrentTime(player.getCurrentTime());
+        	}
+        }, 2000);
+      }
+
+      // 5. The API calls this function when the player's state changes.
+      //    The function indicates that when playing a video (state=1),
+      //    the player should play for six seconds and then stop.
+      // -1 – unstarted
+      // 0 – ended
+      // 1 – playing
+      // 2 – paused
+      // 3 – buffering
+      // 5 – video cued
+      var done = false;
+      function onPlayerStateChange(event) {
+        console.log('player state changed to ' + event.data);
+        if (event.data == 0 && statusReporter != null) {
+        	clearInterval(statusReporter);
+        }
+      }
+
+      function stopVideo() {
+        player.stopVideo();
+      }
+
+      function playCurrentVideo() {
+      	player.playVideo();
+      }
+
+      function pauseCurrentVideo() {
+      	player.pauseVideo();
+      }
+    </script>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+	// var ws = new WebSocket('ws://localhost:5000/');
+	var ws = new WebSocket('ws://ff1b8d30.ngrok.io/');
+	var start_position = -1;
+	ws.onopen = function() {
+		// Web Socket is connected, send data using send()
+		ws.send("Message to send");
+		console.log("Message is sent...");
+	};
+
+	ws.onmessage = function (evt) {
+		var received_msg = evt.data;
+		console.log("Received... " + received_msg);
+	};
+
+	ws.onclose = function() { 
+		// server went down, page needs to be refreshed.
+		console.log("Connection is closed..."); 
+	};
+	
+	ws.onmessage = function (event) {
+		console.log(event.data);
+		if (event.data === "command play") {
+			playCurrentVideo();
+		} else if (event.data === "command pause") {
+			pauseCurrentVideo();
+		} else if (event.data.startsWith("server_start")) {
+			start_position = parseInt(event.data.substring(12));
+		} else if (event.data.startsWith("command seek")) {
+			var pos = parseInt(event.data.split(" ")[2]);
+			if (pos > 0 && player.getPlayerState() == 1) {
+				console.log("Applying seek to " + pos);
+				player.seekTo(pos);
+			}
+		}
+	};
+
+	function sendPauseRequest() {
+		ws.send("request pause");
+	}
+
+	function sendPlayRequest() {
+		ws.send("request play");
+	}
+
+	function sendCurrentTime(ctime) {
+		ws.send("status pos " + ctime);
+	}
+</script>
+</body>
+</html>
